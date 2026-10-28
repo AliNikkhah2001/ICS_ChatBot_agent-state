@@ -1,110 +1,94 @@
-# Agent State Submodule
+# Agent State Submodule — Work Credit RAG Platform
 
-This submodule holds **agent working files**: context, todo lists, session
-history, skills, and project architecture insights. It is versioned separately
-from the source code so that an agent can continue coding on any machine by
-cloning this submodule alongside the main repo.
+This submodule holds **all agent working files**: context, todo lists, session
+history, skills, coding standards, project architecture, and decision records.
 
-> **Why a submodule?** Agent state changes independently of source code and
-> should not pollute `git status` in the main repos. A submodule keeps these
-> files versioned, cloneable, and out of the way.
+It is versioned **separately from source code** so that:
+- An agent can continue coding on any machine by cloning this submodule.
+- Agent state does not pollute `git status` in the main source repos.
+- The main repos stay clean and focused on production code.
 
----
-
-## Where to find everything
-
-| What you need | Path (inside this submodule) | Source of truth |
-|---|---|---|
-| **Agent context / mission** | `context/context.md` | Synced from `.opencode/context.md` |
-| **Agent todo list** | `context/todo.md` | Synced from `.opencode/todo.md` |
-| **Archived sessions** | `history/archive/` | Synced from `.opencode/archive/` |
-| **Agent skills** | `skills/` | Copied from component `*/skills/` dirs |
-| **Project architecture** | `architecture.md` | See below |
-| **Key insights / decisions** | `insights.md` | See below |
-| **File location map** | `FILE_MAP.md` | See below |
+> **Why a submodule?** Agent state changes independently of source code.
+> Keeping it in a submodule means `git status` in `Work_Credit-RAG_Phase1`,
+> `Work_RAG-KB`, etc. only shows source changes — not agent scratch files.
 
 ---
 
-## Quick reference: file locations across the whole platform
+## 📂 Where to find everything
 
-| Concern | Repo / path | Notes |
-|---|---|---|
-| **Umbrella repo** | `Work_Credit-RAG_Phase1/` | Pins submodules, integrated startup (`deploy/vast/`) |
-| **KB ingestion/retrieval** | `components/knowledgebase/kb-manager/` | `Work_RAG-KB` repo |
-| **Orchestrator (LangGraph)** | `components/orchestrator/` | `Work_RAG-Orchestrator` repo |
-| **Guardrails** | `components/guardrails/` | `Work_RAG-Guardrails` repo |
-| **Tracing collector** | `components/tracing/` | Parent repo (not a submodule) |
-| **Hardware/infra setup** | `Work_RAG-Server-Setup/` | Separate repo (H200 hardware) |
-| **Agent state (this submodule)** | `agent-state/` | This repo |
+| What you need | Path (inside this submodule) |
+|---|---|
+| **Agent mission & context** | `context/context.md` |
+| **Agent todo list** | `context/todo.md` |
+| **Archived sessions** | `history/archive/` |
+| **Agent skills** | `skills/` |
+| **Project architecture** | `architecture.md` |
+| **Coding standards & rules** | `coding-standards.md` |
+| **Key insights & decisions** | `insights.md` |
+| **Git workflow & branch protection** | `git-workflow.md` |
+| **File location map** | `FILE_MAP.md` |
+| **Onboarding for new machine** | `onboarding.md` |
 
 ---
 
-## Branching model
+## 🏗 Repo & branch structure
 
 | Branch | Purpose | Protection |
 |---|---|---|
-| `main` / `master` | **Production** — deployed code, PR-only | Branch protection: PR + review required |
-| `develop` | **Integration / test** — feature branches merge here | PR required |
+| `main` / `master` | **Production** — deployed code only | Branch protection: PR + code review required |
+| `develop` | **Integration / test** — features merge here before release | Branch protection: PR + code review required |
 | `feature/*` | Individual dev work | PR from feature → develop |
 
-Never push directly to `main`/`master` or `develop`. Open a pull request and
-require at least one code review before merging.
+**Never push directly to `main`/`master` or `develop`.** Open a pull request and
+require at least one code review before merging. See `git-workflow.md`.
 
 ---
 
-## How to use on a new machine
+## 🔗 Repo ownership (from AGENTS.md)
 
-1. Clone the umbrella repo:
-   ```bash
-   git clone --recursive https://github.com/AliNikkhah2001/Work_Credit-RAG_Phase1.git
-   ```
-   The `--recursive` flag clones all submodules including `agent-state/`.
+| Path | Repo | Branch | Owns |
+|---|---|---|---|
+| `components/server-setup` | Work_RAG-Server-Setup | `main` | hardware, model lifecycle, infra |
+| `components/knowledgebase` | Work_RAG-KB | `master` | ingestion, retrieval, reranking (kb-manager) |
+| `components/guardrails` | Work_RAG-Guardrails | `main` | policy, guarded Gemma |
+| `components/orchestrator` | Work_RAG-Orchestrator | `main` | graph state, adapters, public API |
+| `components/tracing` | parent (not a submodule) | `main` | fallback trace collector `:3000` |
+| parent root | Work_Credit-RAG_Phase1 | `main` | pins, integrated startup (`deploy/vast/`), E2E |
+| `agent-state/` | agent-state | `main` | **this submodule** — agent working files |
 
-2. If you already cloned without `--recursive`:
-   ```bash
-   git submodule update --init --recursive
-   ```
-
-3. The agent state files are now available under `agent-state/`. Read
-   `agent-state/architecture.md` for the project architecture and
-   `agent-state/insights.md` for key decisions.
+`.gitmodules` pins each submodule to an exact commit. Component fix → commit on
+the component's `main`, then advance the gitlink with a parent commit.
 
 ---
 
-## Architecture summary (`architecture.md`)
+## 🚀 Quick start on a new machine
 
-- **KB Manager**: BM25 + dense MiniLM + RRF + cross-encoder rerank, pgvector HNSW
-- **Orchestrator**: LangGraph RAG graph (`validate → retrieve → build_context → guarded_generate → format_response`)
-- **Guardrails**: Signal → LLM judge → PII mask/block → upstream LLM → output rails
-- **LLM Gateway**: Work_RAG-Server-Setup serves Gemma/Qwen/etc. via round-robin llama.cpp backends on port 9000
-- **LiteLLM**: Self-hosted OpenRouter-style gateway (optional, port 4000)
+```bash
+# 1. Clone the umbrella repo with all submodules
+git clone --recursive https://github.com/AliNikkhah2001/Work_Credit-RAG_Phase1.git
+cd Work_Credit-RAG_Phase1
 
----
+# 2. (If already cloned without --recursive)
+git submodule update --init --recursive
 
-## How to update agent state
+# 3. Read the agent onboarding files
+cat agent-state/onboarding.md
+cat agent-state/architecture.md
+cat agent-state/context/context.md
+cat agent-state/context/todo.md
 
-When an agent session produces new context, todos, or insights:
-
-1. Edit files inside `agent-state/` (e.g. `context/context.md`, `history/archive/`).
-2. Commit and push the `agent-state` submodule repo:
-   ```bash
-   cd agent-state
-   git add .
-   git commit -m "chore(agent): update context and todo"
-   git push
-   ```
-3. In the umbrella repo, the submodule gitlink will show as modified. Stage and commit:
-   ```bash
-   cd ..   # back in Work_Credit-RAG_Phase1
-   git add agent-state
-   git commit -m "chore: advance agent-state submodule"
-   git push
-   ```
+# 4. Check current branch — should be 'develop' for integration work
+git branch --show-current
+```
 
 ---
 
-## Notes
+## ⚠️ Critical rules (never break these)
 
-- `node_modules/`, `__pycache__/`, `*.pyc`, `.env`, `*.log` are **not** stored here.
-- This submodule does **not** contain secrets. Never commit API keys, tokens, or passwords.
-- Large binary files (models, docker images) live in `offline-prep/` (gitignored).
+1. **Never force-push** any repo.
+2. **Never commit secrets** — `*.env`, tokens, passwords, `/tmp/opencode/langfuse.env`.
+3. **Never commit generated artifacts** — `*.npz`, `__pycache__`, `*.log`, venvs.
+4. **Never run `pkill python`** — use `bash deploy/vast/stop.sh` (port-scoped `fuser -k`).
+5. **Never set only one of `HF_HOME`/`HF_HUB_CACHE`** — both must point to the same dir.
+6. **Never omit `request_id`** in Studio run inputs.
+7. **Never commit directly to `main`/`master` or `develop`** — use PR + code review.

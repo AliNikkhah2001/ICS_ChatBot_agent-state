@@ -1,20 +1,48 @@
-# Project Context
+# Agent Context — Current Mission
 
-## Environment
-- ai-gpu1 2xH200 NVL 139.8GiB SM90 driver580 CUDA13, 1Ti RAM 30c Xeon, proxy 192.168.203.2:3128, dir /splunk-data/v1/Work_RAG-Server-Setup
-- Python: 3.11.15 installed via deadsnakes PPA (verified 2026-08-24 05:50Z), 3.12.3 still default
-- Venvs: venv-deepseek py3.12 torch2.12.0.dev20260408+cu128 tilelang0.1.8 (TVM fail on 3.12), venv-deepseek11 py3.11 pip26.2.1 (25M, torch install in_progress PID3006102 41M/900M)
-- Models: DS-V4-Flash FP4 89GBx2, int8 88GBx2, bf16 154GBx2, HF 46 shards 148GB
-- nvidia-smi 88763/54394 MiB used/free gpu0, 61811/81346 gpu1
+**Platform:** Work Credit RAG Platform (Persian-first RAG with LangGraph + Guardrails)
+**Branch:** `develop` (integration/test) → `main`/`master` (production)
+**Date:** 2026-10-28
 
-## Current Status
-- M1 in_progress: S1.1.1/S1.1.2 done (verified), S1.2.1 venv creation done (pyvenv.cfg 3.11.15), S1.2.2 torch nightly downloading (41M cudnn), S1.2.3 tilelang pending
-- M2: T2.2 checkpoint audit S2.2.1-3 done (35219/35351 keys, F4 16896, du 89Gx2, config fp4), T2.1 kernels pending on venv11
-- M3: generate.py CPU patch + config_1x1024 + smoke pending (ses_3 started prematurely, will re-queue after M1)
-- M4: README/docs/daemon pending
+## Current state
 
-## Pending Tasks (simplified)
-- M1: wait S1.2.2 completion (~10m), then S1.2.3 tilelang==0.1.8
-- M2: verify float4 copy kernels + tilelang import on py3.11, cache docs
-- M3: patch generate.py cpu init, create tuned config, torchrun MP2 2q smoke
-- M4: README Phase1, daemon 30m, gemma/manager verify, Reviewer gate
+All repos have been cleaned to two branches:
+- `main` / `master` — production
+- `develop` — integration/test staging
+
+The `vast-gemma4-migration` branch has been deleted from all repos.
+Branch protection rules should be configured on GitHub (PR + code review required).
+
+## Active component repos
+
+| Repo | Default branch | Owns |
+|---|---|---|
+| Work_RAG-KB | `master` | KB ingestion, retrieval, reranking |
+| Work_Credit-RAG_Phase1/components/knowledgebase | `master` | KB submodule (pinned to Work_RAG-KB) |
+| Work_Credit-RAG_Phase1/components/orchestrator | `main` | LangGraph RAG agent |
+| Work_Credit-RAG_Phase1/components/guardrails | `main` | Safety + guarded Gemma |
+| Work_Credit-RAG_Phase1 (parent) | `main` | Pins, integrated startup, E2E |
+
+## Key architectural facts
+
+- KB: BM25 + dense MiniLM-L12 (384d) + RRF k=60 + cross-encoder rerank, pgvector HNSW
+- Orchestrator: LangGraph (validate → retrieve → build_context → guarded_generate → format_response)
+- Guardrails: signals → LLM judge → PII mask/block → upstream LLM → output rails
+- LLM gateway: Work_RAG-Server-Setup port 9000, round-robin llama.cpp backends 8080-8084
+- Triton Gemma context window: 8192 tokens — entity payloads trimmed to 4KB total
+
+## Recent changes (supplement entity-list tool path)
+
+- `_dense_encode()` helper replaces dead `dense.model.encode()` calls (5 sites in search.py)
+- Pipeline route passes `SentenceTransformerEmbedder()` so entity descriptions get embeddings
+- `trim_supplemental()` caps entity data at top-3 lists × 4KB each
+- `build_context` total budget: 4000 chars
+- Guardrails `finish_reason="length"` instead of `"error"` (pydantic Literal fix)
+- `should_clarify` + retrieve gates short-circuit when entity evidence exists
+- Code-token fallback: mixed alphanumeric tokens (MTX1, SBD1) match at threshold regardless of cosine
+
+## Open tasks
+
+- Configure GitHub branch protection rules (PR + 1 review required on main/master and develop)
+- Create GitHub repo for agent-state submodule and push local agent-state to it
+- Run draft tests against live stack (KB :8000, orchestrator :8100, guardrails :8200)
