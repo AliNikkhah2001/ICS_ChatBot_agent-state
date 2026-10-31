@@ -12,6 +12,30 @@ It is versioned **separately from source code** so that:
 > Keeping it in a submodule means `git status` in `Work_Credit-RAG_Phase1`,
 > `Work_RAG-KB`, etc. only shows source changes — not agent scratch files.
 
+## 🗂 Code Hierarchy & File Diagram
+
+```mermaid
+graph TD
+    ROOT[agent-state/]
+    ROOT --> README[README.md]
+    ROOT --> ARCH[architecture.md]
+    ROOT --> FILES[FILE_MAP.md]
+    ROOT --> STAND[coding-standards.md]
+    ROOT --> INSIGHT[insights.md]
+    ROOT --> GIT[git-workflow.md]
+    ROOT --> ONBOARD[onboarding.md]
+    ROOT --> CTX[context/]
+    CTX --> CTXM[context.md]
+    CTX --> TODO[todo.md]
+    ROOT --> HIST[history/]
+    HIST --> ARCHV[archive/]
+    ROOT --> SKILLS[skills/]
+    SKILLS --> SR[README.md]
+
+classDef root fill:#e1f5e1,stroke:#2e7d32,stroke-width:2px
+class ROOT root
+```
+
 ---
 
 ## 📂 Where to find everything
