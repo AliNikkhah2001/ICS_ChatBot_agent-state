@@ -14,29 +14,50 @@ Agent state changes independently of source code. Keeping it in a submodule mean
 ## Code hierarchy & file diagram
 
 <details>
-<summary>Expand to view file tree diagram</summary>
+<summary>Expand to view file diagrams</summary>
+
+### Variant A — Detailed Technical Diagram
+
+Shows every agent-state working file with actual paths as node labels. Directories are boxes; files are circles.
 
 ```mermaid
 graph TD
-    ROOT[agent-state/]
-    ROOT --> README[README.md]
-    ROOT --> ARCH[architecture.md]
-    ROOT --> FILES[FILE_MAP.md]
-    ROOT --> STAND[coding-standards.md]
-    ROOT --> INSIGHT[insights.md]
-    ROOT --> GIT[git-workflow.md]
-    ROOT --> ONBOARD[onboarding.md]
-    ROOT --> CTX[context/]
-    CTX --> CTXM[context.md]
-    CTX --> TODO[todo.md]
-    ROOT --> HIST[history/]
-    HIST --> ARCHV[archive/]
-    ROOT --> SKILLS[skills/]
-    SKILLS --> SR[README.md]
+    ROOT["agent-state/"]
+    ROOT --> ARCH(("architecture.md"))
+    ROOT --> STD(("coding-standards.md"))
+    ROOT --> FILEMAP(("FILE_MAP.md"))
+    ROOT --> GIT(("git-workflow.md"))
+    ROOT --> INSIGHT(("insights.md"))
+    ROOT --> ONBOARD(("onboarding.md"))
+    ROOT --> CTX["context/"]
+    CTX --> CTXM(("context/context.md"))
+    CTX --> TODO(("context/todo.md"))
+    ROOT --> HIST["history/"]
+    HIST --> ARCHV(("history/archive/"))
+    ROOT --> SKILLS["skills/"]
+    SKILLS --> SR(("skills/README.md"))
 
-classDef root fill:#e1f5e1,stroke:#2e7d32,stroke-width:2px
-class ROOT root
+classDef dir fill:#e1f5e1,stroke:#2e7d32,stroke-width:2px
+class ROOT,CTX,HIST,SKILLS dir
 ```
+
+### Variant B — High-Level Black Box Diagram
+
+Minimal boxes: Agent Context, Context Files, History, Skills, Config. No file-level detail.
+
+```mermaid
+graph TD
+    CONFIG["Config"]
+    SKILLS["Skills"]
+    HISTORY["History"]
+    CTX_FILES["Context Files"]
+    AGENT["Agent Context"]
+    CONFIG --> AGENT
+    SKILLS --> AGENT
+    HISTORY --> AGENT
+    CTX_FILES --> AGENT
+```
+
 </details>
 
 ## Where to find everything
