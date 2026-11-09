@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dana — Agent State Overview</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="brand">
+        <div class="logo">Dana</div>
+        <div class="logo-sub">Agent State Submodule</div>
+      </div>
+      <nav class="nav-links">
+        <a href="index.html" class="active">Overview</a>
+        <a href="high-level.html">High-Level Detail</a>
+        <a href="technical.html">In-Depth Technical Detail</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="container page">
+    <h1>Agent State Submodule — Work Credit RAG Platform</h1>
+    <p>
+      This submodule holds <strong>all agent working files</strong>: context, todo lists, session
+      history, skills, coding standards, project architecture, and decision records. It is versioned
+      separately from source code so that an agent can continue coding on any machine by cloning this
+      submodule, agent state does not pollute <code>git status</code> in the main source repos, and the
+      main repos stay clean and focused on production code.
+    </p>
+
+    <div class="card crimson-border">
+      <h3>Why a Submodule</h3>
+      <ul>
+        <li>Agent state changes independently of source code.</li>
+        <li>Keeping it in a submodule means <code>git status</code> in <code>Work_Credit-RAG_Phase1</code>,
+          <code>Work_RAG-KB</code>, etc. only shows source changes — not agent scratch files.</li>
+        <li>The main repos stay clean and focused on production code.</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>Repo &amp; Branch Structure</h2>
+      <table>
+        <thead>
+          <tr><th>Branch</th><th>Purpose</th><th>Protection</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>main</code> / <code>master</code></td>
+            <td>Production — deployed code only</td>
+            <td>PR + code review required</td>
+          </tr>
+          <tr>
+            <td><code>develop</code></td>
+            <td>Integration / test — features merge here before release</td>
+            <td>PR + code review required</td>
+          </tr>
+          <tr>
+            <td><code>feature/*</code></td>
+            <td>Individual dev work</td>
+            <td>PR from feature → develop</td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="alert">
+        Never push directly to <code>main</code>/<code>master</code> or <code>develop</code>. Open a pull request
+        and require at least one code review before merging. See <code>git-workflow.md</code>.
+      </p>
+    </div>
+
+    <div class="section">
+      <h2>Repo Ownership (from AGENTS.md)</h2>
+      <table>
+        <thead>
+          <tr><th>Path</th><th>Repo</th><th>Branch</th><th>Owns</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>components/server-setup</td>
+            <td>Work_RAG-Server-Setup</td>
+            <td>main</td>
+            <td>hardware, model lifecycle, infra</td>
+          </tr>
+          <tr>
+            <td>components/knowledgebase</td>
+            <td>Work_RAG-KB</td>
+            <td>master</td>
+            <td>ingestion, retrieval, reranking (kb-manager)</td>
+          </tr>
+          <tr>
+            <td>components/guardrails</td>
+            <td>Work_RAG-Guardrails</td>
+            <td>main</td>
+            <td>policy, guarded Gemma</td>
+          </tr>
+          <tr>
+            <td>components/orchestrator</td>
+            <td>Work_RAG-Orchestrator</td>
+            <td>main</td>
+            <td>graph state, adapters, public API</td>
+          </tr>
+          <tr>
+            <td>components/tracing</td>
+            <td>parent (not a submodule)</td>
+            <td>main</td>
+            <td>fallback trace collector :3000</td>
+          </tr>
+          <tr>
+            <td>parent root</td>
+            <td>Work_Credit-RAG_Phase1</td>
+            <td>main</td>
+            <td>pins, integrated startup, E2E</td>
+          </tr>
+          <tr>
+            <td>agent-state/</td>
+            <td>agent-state</td>
+            <td>main</td>
+            <td>this submodule — agent working files</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        <code>.gitmodules</code> pins each submodule to an exact commit. Component fix → commit on the component's
+        main, then advance the gitlink with a parent commit.
+      </p>
+    </div>
+
+    <div class="section">
+      <h2>Quick Start on a New Machine</h2>
+      <pre><code>git clone --recursive https://github.com/AliNikkhah2001/Work_Credit-RAG_Phase1.git
+cd Work_Credit-RAG_Phase1
+git submodule update --init --recursive
+cat agent-state/onboarding.md
+cat agent-state/architecture.md
+cat agent-state/context/context.md
+cat agent-state/context/todo.md
+git branch --show-current</code></pre>
+    </div>
+
+    <div class="section">
+      <h2>Critical Rules</h2>
+      <ol>
+        <li>Never force-push any repo.</li>
+        <li>Never commit secrets — <code>*.env</code>, tokens, passwords, <code>/tmp/opencode/langfuse.env</code>.</li>
+        <li>Never commit generated artifacts — <code>*.npz</code>, <code>__pycache__</code>, <code>*.log</code>, venvs.</li>
+        <li>Never run <code>pkill python</code> — use <code>bash deploy/vast/stop.sh</code> (port-scoped <code>fuser -k</code>).</li>
+        <li>Never set only one of <code>HF_HOME</code>/<code>HF_HUB_CACHE</code> — both must point to the same dir.</li>
+        <li>Never omit <code>request_id</code> in Studio run inputs.</li>
+        <li>Never commit directly to <code>main</code>/<code>master</code> or <code>develop</code> — use PR + code review.</li>
+      </ol>
+    </div>
+
+    <div class="section">
+      <h2>Libraries</h2>
+      <p>
+        No runtime libraries are installed from this submodule. It contains only markdown agent-working files.
+        Dependencies for consuming repos are listed in each submodule's <code>pyproject.toml</code>.
+      </p>
+    </div>
+
+    <div class="section">
+      <h2>Changelog</h2>
+      <table>
+        <thead>
+          <tr><th>Version</th><th>Date</th><th>Summary</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>v1.0.0</td>
+            <td>2026-10-28</td>
+            <td>Initial submodule split — agent context separated from production source code</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <h2>Where to Find Everything</h2>
+      <table>
+        <thead>
+          <tr><th>What you need</th><th>Path (inside this submodule)</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Agent mission &amp; context</td><td><code>context/context.md</code></td></tr>
+          <tr><td>Agent todo list</td><td><code>context/todo.md</code></td></tr>
+          <tr><td>Archived sessions</td><td><code>history/archive/</code></td></tr>
+          <tr><td>Agent skills</td><td><code>skills/</code></td></tr>
+          <tr><td>Project architecture</td><td><code>architecture.md</code></td></tr>
+          <tr><td>Coding standards &amp; rules</td><td><code>coding-standards.md</code></td></tr>
+          <tr><td>Key insights &amp; decisions</td><td><code>insights.md</code></td></tr>
+          <tr><td>Git workflow &amp; branch protection</td><td><code>git-workflow.md</code></td></tr>
+          <tr><td>File location map</td><td><code>FILE_MAP.md</code></td></tr>
+          <tr><td>Onboarding for new machine</td><td><code>onboarding.md</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <p><strong>Dana</strong> — Agent State Submodule | Work Credit RAG Platform &nbsp;|&nbsp;
+        <a href="high-level.html">High-Level Detail →</a> &nbsp;|&nbsp;
+        <a href="technical.html">In-Depth Technical Detail →</a>
+      </p>
+    </div>
+  </footer>
+
+  <script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({ startOnLoad: true, theme: 'base', securityLevel: 'loose' });
+  </script>
+</body>
+</html>

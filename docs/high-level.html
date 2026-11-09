@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dana — Agent State High-Level Detail</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="brand">
+        <div class="logo">Dana</div>
+        <div class="logo-sub">Agent State Submodule</div>
+      </div>
+      <nav class="nav-links">
+        <a href="index.html">Overview</a>
+        <a href="high-level.html" class="active">High-Level Detail</a>
+        <a href="technical.html">In-Depth Technical Detail</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="container page">
+    <h1>High-Level Detail</h1>
+    <p>
+      A structural view of the <strong>agent-state</strong> submodule: the file tree diagrams, the file
+      location map, and the platform service map. This page is the starting point for navigating the
+      agent's working files across the Work Credit RAG Platform.
+    </p>
+
+    <div class="section">
+      <h2>Code Hierarchy &amp; File Diagram</h2>
+      <p>
+        The agent-state submodule contains every agent working file: context, todo lists, session history,
+        skills, coding standards, project architecture, decision records, and the file location map itself.
+        Directories are boxes; files are circles.
+      </p>
+
+      <div class="diagram-wrap">
+        <div class="diagram-title">Variant A — Detailed Technical Diagram</div>
+        <div class="mermaid">
+          graph TD
+            ROOT["agent-state/"]
+            ROOT --> ARCH(("architecture.md"))
+            ROOT --> STD(("coding-standards.md"))
+            ROOT --> FILEMAP(("FILE_MAP.md"))
+            ROOT --> GIT(("git-workflow.md"))
+            ROOT --> INSIGHT(("insights.md"))
+            ROOT --> ONBOARD(("onboarding.md"))
+            ROOT --> CTX["context/"]
+            CTX --> CTXM(("context/context.md"))
+            CTX --> TODO(("context/todo.md"))
+            ROOT --> HIST["history/"]
+            HIST --> ARCHV(("history/archive/"))
+            ROOT --> SKILLS["skills/"]
+            SKILLS --> SR(("skills/README.md"))
+
+            classDef dir fill:#e1f5e1,stroke:#2e7d32,stroke-width:2px
+            class ROOT,CTX,HIST,SKILLS dir
+        </div>
+        <div class="diagram-caption">
+          <ul>
+            <li><strong>ROOT</strong> — <code>agent-state/</code>, the top-level submodule directory containing all agent working files.</li>
+            <li><strong>ARCH</strong> — <code>architecture.md</code>: end-to-end system architecture, single source of truth for data flow through the platform.</li>
+            <li><strong>STD</strong> — <code>coding-standards.md</code>: Python/FastAPI/db/model-serving/Persian rules plus the never-do list.</li>
+            <li><strong>FILEMAP</strong> — <code>FILE_MAP.md</code>: single index for finding agent-related text files across the platform.</li>
+            <li><strong>GIT</strong> — <code>git-workflow.md</code>: branch structure, PR workflow, submodule workflow, branch protection rules.</li>
+            <li><strong>INSIGHT</strong> — <code>insights.md</code>: key decisions, lessons learned, open questions.</li>
+            <li><strong>ONBOARD</strong> — <code>onboarding.md</code>: new-machine setup checklist.</li>
+            <li><strong>CTX</strong> — <code>context/</code>: agent context directory.</li>
+            <li><strong>CTXM</strong> — <code>context/context.md</code>: current agent mission and active component repos.</li>
+            <li><strong>TODO</strong> — <code>context/todo.md</code>: current agent todo list (in progress, pending, completed).</li>
+            <li><strong>HIST</strong> — <code>history/</code>: archived agent sessions directory.</li>
+            <li><strong>ARCHV</strong> — <code>history/archive/</code>: archived sessions such as the DeepSeek-V4 paused mission and audit-fix plan.</li>
+            <li><strong>SKILLS</strong> — <code>skills/</code>: agent skill definitions for each component repo.</li>
+            <li><strong>SR</strong> — <code>skills/README.md</code>: skill tables mapping tasks to skills and repos.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="diagram-wrap">
+        <div class="diagram-title">Variant B — High-Level Black Box Diagram</div>
+        <div class="mermaid">
+          graph TD
+            CONFIG["Config"]
+            SKILLS["Skills"]
+            HISTORY["History"]
+            CTX_FILES["Context Files"]
+            AGENT["Agent Context"]
+            CONFIG --> AGENT
+            SKILLS --> AGENT
+            HISTORY --> AGENT
+            CTX_FILES --> AGENT
+        </div>
+        <div class="diagram-caption">
+          <ul>
+            <li><strong>Config</strong> — configuration and branch rules that feed into the agent context.</li>
+            <li><strong>Skills</strong> — skill definitions scoped to each component of the Work Credit RAG Platform.</li>
+            <li><strong>History</strong> — archived session records and decision history.</li>
+            <li><strong>Context Files</strong> — current mission context and todo lists.</li>
+            <li><strong>Agent Context</strong> — central aggregation of config, skills, history, and context files into the agent's working state.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Where to Find Everything — File Map</h2>
+      <table>
+        <thead>
+          <tr><th>What you need</th><th>Path (inside this submodule)</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Agent mission &amp; context</td><td><code>context/context.md</code></td></tr>
+          <tr><td>Agent todo list</td><td><code>context/todo.md</code></td></tr>
+          <tr><td>Archived sessions</td><td><code>history/archive/</code></td></tr>
+          <tr><td>Agent skills</td><td><code>skills/</code></td></tr>
+          <tr><td>Project architecture</td><td><code>architecture.md</code></td></tr>
+          <tr><td>Coding standards &amp; rules</td><td><code>coding-standards.md</code></td></tr>
+          <tr><td>Key insights &amp; decisions</td><td><code>insights.md</code></td></tr>
+          <tr><td>Git workflow &amp; branch protection</td><td><code>git-workflow.md</code></td></tr>
+          <tr><td>File location map</td><td><code>FILE_MAP.md</code></td></tr>
+          <tr><td>Onboarding for new machine</td><td><code>onboarding.md</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <h2>Component-Level Source Files</h2>
+      <table>
+        <thead>
+          <tr><th>Concern</th><th>Repo</th><th>Path</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>KB pipeline orchestrator</td><td>Work_RAG-KB</td><td><code>kb-manager/kb_manager/pipeline/orchestrator.py</code></td></tr>
+          <tr><td>KB web routes (search)</td><td>Work_RAG-KB</td><td><code>kb-manager/kb_manager/web/routes/search.py</code></td></tr>
+          <tr><td>KB pipeline route</td><td>Work_RAG-KB</td><td><code>kb-manager/kb_manager/web/routes/pipeline.py</code></td></tr>
+          <tr><td>KB zip browser</td><td>Work_RAG-KB</td><td><code>kb-manager/kb_manager/web/routes/zip_browser.py</code></td></tr>
+          <tr><td>KB database models</td><td>Work_RAG-KB</td><td><code>kb-manager/kb_manager/models/database.py</code></td></tr>
+          <tr><td>KB config</td><td>Work_RAG-KB</td><td><code>kb-manager/kb_manager/config.py</code></td></tr>
+          <tr><td>KB settings</td><td>Work_RAG-KB</td><td><code>kb-manager/kb_manager/settings.py</code></td></tr>
+          <tr><td>KB dense index</td><td>Work_RAG-KB</td><td><code>kb-manager/kb_manager/dense.py</code></td></tr>
+          <tr><td>KB embedder</td><td>Work_RAG-KB</td><td><code>kb-manager/kb_manager/embedder/sentence_transformer.py</code></td></tr>
+          <tr><td>Orchestrator graph</td><td>Work_Credit-RAG_Phase1/components/orchestrator</td><td><code>src/work_rag_orchestrator/graph.py</code></td></tr>
+          <tr><td>Orchestrator retrieve node</td><td>Work_Credit-RAG_Phase1/components/orchestrator</td><td><code>src/work_rag_orchestrator/nodes/retrieve.py</code></td></tr>
+          <tr><td>Orchestrator build_context</td><td>Work_Credit-RAG_Phase1/components/orchestrator</td><td><code>src/work_rag_orchestrator/nodes/build_context.py</code></td></tr>
+          <tr><td>Orchestrator API</td><td>Work_Credit-RAG_Phase1/components/orchestrator</td><td><code>src/work_rag_orchestrator/api.py</code></td></tr>
+          <tr><td>Orchestrator state</td><td>Work_Credit-RAG_Phase1/components/orchestrator</td><td><code>src/work_rag_orchestrator/state.py</code></td></tr>
+          <tr><td>Orchestrator tracing</td><td>Work_Credit-RAG_Phase1/components/orchestrator</td><td><code>src/work_rag_orchestrator/tracing.py</code></td></tr>
+          <tr><td>Orchestrator clients</td><td>Work_Credit-RAG_Phase1/components/orchestrator</td><td><code>src/work_rag_orchestrator/clients/</code></td></tr>
+          <tr><td>Guardrails service</td><td>Work_Credit-RAG_Phase1/components/guardrails</td><td><code>src/work_rag_guardrails/service.py</code></td></tr>
+          <tr><td>Guardrails API</td><td>Work_Credit-RAG_Phase1/components/guardrails</td><td><code>src/work_rag_guardrails/api.py</code></td></tr>
+          <tr><td>Guardrails judge</td><td>Work_Credit-RAG_Phase1/components/guardrails</td><td><code>src/work_rag_guardrails/judge.py</code></td></tr>
+          <tr><td>Guardrails dashboard</td><td>Work_Credit-RAG_Phase1/components/guardrails</td><td><code>src/work_rag_guardrails/dashboard.py</code></td></tr>
+          <tr><td>Tracing collector</td><td>Work_Credit-RAG_Phase1/components/tracing</td><td><code>app.py</code></td></tr>
+          <tr><td>Tracing observe</td><td>Work_Credit-RAG_Phase1/components/tracing</td><td><code>observe.py</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <h2>Platform-Level Documentation</h2>
+      <table>
+        <thead>
+          <tr><th>Document</th><th>Path</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Consolidated agent manual (umbrella)</td><td><code>Work_Credit-RAG_Phase1/AGENTS.md</code></td></tr>
+          <tr><td>Parent README</td><td><code>README.md</code></td></tr>
+          <tr><td>KB README</td><td><code>Work_RAG-KB/kb-manager/README.md</code></td></tr>
+          <tr><td>Guardrails README</td><td><code>Work_Credit-RAG_Phase1/components/guardrails/README.md</code></td></tr>
+          <tr><td>Orchestrator README</td><td><code>Work_Credit-RAG_Phase1/components/orchestrator/README.md</code></td></tr>
+          <tr><td>LiteLLM guide</td><td><code>Work_Credit-RAG_Phase1/AGENTS.md</code> (section 5)</td></tr>
+          <tr><td>H200 hardware runbook</td><td><code>Work_RAG-Server-Setup/README.runbook.md</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <h2>Service Map (H200 Host)</h2>
+      <table>
+        <thead>
+          <tr><th>Service</th><th>Port</th><th>Repo</th><th>Role</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>LLM Inference Manager</td><td>9000</td><td>Work_RAG-Server-Setup</td><td>OpenAI-compatible gateway, round-robin over llama.cpp backends</td></tr>
+          <tr><td>llama.cpp backends</td><td>8080-8084, 8090</td><td>Work_RAG-Server-Setup</td><td>Per-GPU model servers (Gemma, Qwen, Nemotron, etc.)</td></tr>
+          <tr><td>Embedding servers</td><td>8001, 8002, 8003</td><td>Work_RAG-Server-Setup</td><td>multilingual-e5-small (384d), bge-m3 (1024d), paraphrase-multilingual-MiniLM (384d)</td></tr>
+          <tr><td>KB Manager</td><td>8000</td><td>Work_RAG-KB</td><td>BM25 + dense hybrid search, entity lists, pgvector HNSW</td></tr>
+          <tr><td>Guardrails</td><td>8200</td><td>Work_RAG-Guardrails</td><td>Safety rails, guarded Gemma gateway</td></tr>
+          <tr><td>Orchestrator</td><td>8100</td><td>Work_RAG-Orchestrator</td><td>LangGraph RAG agent</td></tr>
+          <tr><td>Tracing collector (fallback)</td><td>3000</td><td>parent</td><td>JSONL trace collector, Langfuse-compatible</td></tr>
+          <tr><td>Langfuse v2 UI</td><td>3001</td><td>external</td><td>Full trace UI (Postgres + Clickhouse)</td></tr>
+          <tr><td>Open WebUI</td><td>13000</td><td>Docker</td><td>Chat frontend → Orchestrator :8100/v1</td></tr>
+          <tr><td>LiteLLM (optional)</td><td>4000</td><td>external</td><td>Self-hosted OpenRouter-style gateway</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <p><strong>Dana</strong> — Agent State Submodule | Work Credit RAG Platform &nbsp;|&nbsp;
+        <a href="index.html">← Overview</a> &nbsp;|&nbsp;
+        <a href="technical.html">In-Depth Technical Detail →</a>
+      </p>
+    </div>
+  </footer>
+
+  <script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({ startOnLoad: true, theme: 'base', securityLevel: 'loose' });
+  </script>
+</body>
+</html>

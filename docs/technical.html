@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dana — Agent State Technical Detail</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="brand">
+        <div class="logo">Dana</div>
+        <div class="logo-sub">Agent State Submodule</div>
+      </div>
+      <nav class="nav-links">
+        <a href="index.html">Overview</a>
+        <a href="high-level.html">High-Level Detail</a>
+        <a href="technical.html" class="active">In-Depth Technical Detail</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="container page">
+    <h1>In-Depth Technical Detail</h1>
+    <p>
+      Deep technical reference for the <strong>agent-state</strong> submodule: coding standards, key decisions
+      and lessons learned, the git/PR workflow, onboarding checklist, current agent context, todo list, skill
+      definitions, and archived session history.
+    </p>
+
+    <div class="section">
+      <h2>Coding Standards &amp; Rules</h2>
+
+      <div class="card">
+        <h3>1. Python Style</h3>
+        <table>
+          <thead><tr><th>Rule</th><th>Detail</th></tr></thead>
+          <tbody>
+            <tr><td>Type hints</td><td>All public functions must have type hints. Use <code>typing</code> module (<code>List</code>, <code>Dict</code>, <code>Optional</code>, <code>Any</code>, <code>Annotated</code>).</td></tr>
+            <tr><td>Docstrings</td><td>Every public function/class needs a docstring. Follow the pattern in <code>kb_manager/pipeline/orchestrator.py</code> (Args/Returns sections).</td></tr>
+            <tr><td>Async</td><td>Use <code>async def</code> for I/O-bound operations (DB, HTTP). Do NOT mix <code>asyncio.to_thread()</code> with asyncpg — thread-hop breaks the pool ("attached to a different loop").</td></tr>
+            <tr><td>Error handling</td><td>Wrap external calls (HTTP, DB, model) in <code>try/except</code>. Log with <code>log.warning()</code>/<code>log.error()</code>. Fail closed on guardrails.</td></tr>
+            <tr><td>Logging</td><td>Use module-level <code>logger = logging.getLogger(__name__)</code>. Do not <code>print()</code>.</td></tr>
+            <tr><td>No comments on obvious code</td><td>Comments only for <em>why</em>, not <em>what</em>.</td></tr>
+            <tr><td>Imports</td><td>Standard library → third-party → local. No wildcard imports.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h3>2. FastAPI Patterns</h3>
+        <table>
+          <thead><tr><th>Rule</th><th>Detail</th></tr></thead>
+          <tbody>
+            <tr><td>Pydantic models</td><td>Use <code>BaseModel</code> for request/response bodies. Validate all inputs.</td></tr>
+            <tr><td>Factory pattern</td><td>Use <code>create_app --factory</code> (see <code>work_rag_guardrails.api</code>, <code>work_rag_orchestrator.api</code>).</td></tr>
+            <tr><td>Endpoints</td><td>RESTful nouns. <code>/v1/chat/completions</code>, <code>/v1/models</code>, <code>/health</code>, <code>/ready</code>.</td></tr>
+            <tr><td>Timeouts</td><td><code>httpx.AsyncClient(timeout=120, trust_env=False)</code> — bypass corporate proxy for localhost.</td></tr>
+            <tr><td>Status codes</td><td>Return proper HTTP status. Guardrails catches upstream errors and returns <code>finish_reason="length"</code> (valid Literal) instead of crashing with <code>"error"</code>.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h3>3. Database Patterns</h3>
+        <table>
+          <thead><tr><th>Rule</th><th>Detail</th></tr></thead>
+          <tbody>
+            <tr><td>Async SQLAlchemy</td><td>Use <code>async_sessionmaker</code>, <code>AsyncSession</code>. Always <code>async with db.session() as session:</code>.</td></tr>
+            <tr><td>pgvector</td><td>HNSW index for chunk embeddings. <code>1 - (embedding &lt;=&gt; CAST(:q AS vector))</code> for cosine.</td></tr>
+            <tr><td>Entity lists</td><td><code>EntityList</code> table: <code>list_name</code>, <code>description</code>, <code>description_embedding</code> (JSON), <code>content_json</code>. Always populate <code>description_embedding</code> via <code>SentenceTransformerEmbedder.embed_texts()</code>.</td></tr>
+            <tr><td>Migrations</td><td>None automated — schema changes via manual SQL + code updates.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h3>4. Model Serving Patterns</h3>
+        <table>
+          <thead><tr><th>Rule</th><th>Detail</th></tr></thead>
+          <tbody>
+            <tr><td>Gemma</td><td>Must use <code>chat_template_kwargs:{"enable_thinking":false}</code> + <code>--no-mmproj --jinja</code> or <code>&lt;unused*&gt;</code> tokens leak.</td></tr>
+            <tr><td>Context window</td><td>Triton Gemma: 8192 tokens. Keep prompts under ~20K chars (~7K tokens) + 1024 max_tokens.</td></tr>
+            <tr><td>VRAM</td><td>22.7/24 GB at ctx 8192. OOM under load → restart llama-server with <code>--ctx-size 4096</code>.</td></tr>
+            <tr><td>Proxy bypass</td><td><code>trust_env=False</code> on httpx clients for localhost calls. Without it, Squid proxy (<code>192.168.203.2:3128</code>) causes hangs.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h3>5. Persian Language Handling</h3>
+        <table>
+          <thead><tr><th>Rule</th><th>Detail</th></tr></thead>
+          <tbody>
+            <tr><td>Normalization</td><td>Use <code>preprocessor/persian.py</code>, <code>regex_persian.py</code> for Persian text normalization.</td></tr>
+            <tr><td>Synonyms</td><td>93-entry map in <code>query_expansion.py</code> (colloquial → formal).</td></tr>
+            <tr><td>Tokenizer</td><td>tantivy BM25 with Persian word + 3-gram stream.</td></tr>
+            <tr><td>Embedding model</td><td><code>sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2</code> (384d).</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h3>6. Git Rules (from AGENTS.md)</h3>
+        <table>
+          <thead><tr><th>Rule</th><th>Detail</th></tr></thead>
+          <tbody>
+            <tr><td>Submodule pins</td><td>Parent pins submodules to exact commits. Check: <code>git submodule status --recursive</code>.</td></tr>
+            <tr><td>Component fix</td><td>Commit on component's branch → advance parent gitlink.</td></tr>
+            <tr><td>Deployment-only</td><td>(<code>deploy/</code>, <code>docs/</code>, <code>eval/</code>) → parent <code>main</code>.</td></tr>
+            <tr><td>Never force-push</td><td></td></tr>
+            <tr><td>Never commit secrets</td><td>(<code>*.env</code>, tokens, passwords)</td></tr>
+            <tr><td>Never commit generated artifacts</td><td>(<code>*.npz</code>, <code>__pycache__</code>, <code>*.log</code>, venvs)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h3>7. Vast.ai / Deployment Gotchas</h3>
+        <table>
+          <thead><tr><th>Gotcha</th><th>Fix</th></tr></thead>
+          <tbody>
+            <tr><td>No Docker (unprivileged container)</td><td>Host venvs only</td></tr>
+            <tr><td>NAT ports fixed at creation</td><td>SSH tunnels for public access</td></tr>
+            <tr><td>Phantom overlay dentries</td><td><code>/workspace/.hf_home</code> looks populated but is empty; real cache is <code>/tmp/hf_clean</code></td></tr>
+            <tr><td>HF cache</td><td>Set BOTH <code>HF_HOME</code> and <code>HF_HUB_CACHE</code> to same dir</td></tr>
+            <tr><td>asyncpg loop bug</td><td><code>search_api</code> must <code>await</code> directly, NOT via <code>asyncio.to_thread()</code></td></tr>
+            <tr><td>Langfuse v2</td><td>Top-level <code>id</code> + ISO <code>timestamp</code>; updates via same-id <code>trace-create</code> (no <code>trace-update</code>)</td></tr>
+            <tr><td>Gemma thinking leak</td><td><code>--no-mmproj --jinja</code> + <code>enable_thinking:false</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card alert">
+        <h3>8. Never Do</h3>
+        <ol>
+          <li>Never <code>pkill python</code> — kills everything. Use <code>bash deploy/vast/stop.sh</code>.</li>
+          <li>Never launch gemma-manager or download another GGUF (Gemma is external <code>:18000</code>).</li>
+          <li>Never expose <code>:18000</code>, postgres, or redis publicly.</li>
+          <li>Never commit <code>.env</code> / secrets / <code>*.npz</code> / logs / venvs.</li>
+          <li>Never force-push any repo.</li>
+          <li>Never run Docker on this unprivileged host.</li>
+          <li>Never set only one of <code>HF_HOME</code>/<code>HF_HUB_CACHE</code>.</li>
+          <li>Never omit <code>request_id</code> in Studio run inputs.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Key Insights &amp; Decisions</h2>
+      <table>
+        <thead>
+          <tr><th>#</th><th>Decision</th><th>Rationale</th><th>Date</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>1</td>
+            <td><code>dense._ensure_model()</code> instead of <code>dense.model</code></td>
+            <td><code>DenseSemanticIndex</code> has no public <code>.model</code> attribute. All <code>hasattr(dense, "model")</code> guards were always False, silently disabling embedding in step-8 entity injection and <code>/search/supplement</code>.</td>
+            <td>2026-10-27</td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td>Entity lists embedded via <code>embed_texts(title + desc)</code></td>
+            <td>All 10 reason-code variants share identical generic descriptions. The <code>list_name</code> (title) is what distinguishes them.</td>
+            <td>2026-10-27</td>
+          </tr>
+          <tr>
+            <td>3</td>
+            <td><code>trim_supplemental()</code> + 4KB total budget in <code>build_context</code></td>
+            <td>Triton Gemma has 8192-token context. 11 full entity lists = 663KB caused HTTP 500 context overflow (Triton 400: <code>default_max_tokens</code> negative).</td>
+            <td>2026-10-27</td>
+          </tr>
+          <tr>
+            <td>4</td>
+            <td>Guardrails <code>finish_reason="length"</code> not <code>"error"</code></td>
+            <td>Pydantic <code>ChatCompletionChoice.finish_reason</code> is a Literal of <code>stop</code>/<code>length</code>/<code>content_filter</code>. <code>"error"</code> crashed validation and masked the real upstream 400 context-overflow.</td>
+            <td>2026-10-27</td>
+          </tr>
+          <tr>
+            <td>5</td>
+            <td><code>should_clarify</code> short-circuits on entity evidence</td>
+            <td>When the supplement tool matches a dictionary (reason code, shareholder, etc.), clarify is counterproductive — the model can answer from entity rows directly.</td>
+            <td>2026-10-27</td>
+          </tr>
+          <tr>
+            <td>6</td>
+            <td>Code-token fallback in supplement search</td>
+            <td>Cosine for queries like "MTX1" or "SBD1" is diluted by stopwords (~0.35 &lt; 0.4 threshold). Mixed alphanumeric tokens appearing in list content guarantee a match regardless of cosine.</td>
+            <td>2026-10-27</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Lessons Learned</h3>
+      <ul>
+        <li><strong>Never assume <code>hasattr(dense, "model")</code> works.</strong> Always use <code>dense._ensure_model()</code> or <code>dense._encode()</code> on <code>DenseSemanticIndex</code>. Checked in <code>kb_manager/web/routes/search.py</code> at 5 sites.</li>
+        <li><strong>Entity lists need explicit embeddings.</strong> The pipeline route constructed <code>PipelineOrchestrator(database=db, chunker=chunker)</code> without an embedder, so all 22 entity lists had <code>description_embedding=None</code>. Fixed by passing <code>SentenceTransformerEmbedder()</code>.</li>
+        <li><strong>Context window is the bottleneck.</strong> The 8192-token Triton limit caused silent 500s. Fixed by trimming entity payloads and capping <code>build_context</code> budget at 4000 chars.</li>
+        <li><strong>Guardrails swallows upstream errors.</strong> A bare HTTP 500 hid the real Triton 400 until we reproduced in-process with the exact <code>prompt_messages</code>.</li>
+        <li><strong>Persian query path matters.</strong> The KB uses <code>preprocessor/persian.py</code> + <code>regex_persian.py</code> for normalization, plus a 93-entry synonym map in <code>query_expansion.py</code>. Ignoring this breaks retrieval for Persian queries.</li>
+      </ul>
+
+      <h3>Open Questions</h3>
+      <ul>
+        <li>Should <code>develop</code> be protected with required PR reviews on GitHub? (Recommended: yes)</li>
+        <li>Is <code>vast-gemma4-migration</code> still needed, or should changes merge directly to <code>master</code>/<code>main</code>? (Branch deleted per user decision)</li>
+        <li>Should LiteLLM be adopted as the unified gateway, replacing per-app provider config? (See AGENTS.md section 5)</li>
+      </ul>
+
+      <h3>Recently Archived</h3>
+      <ul>
+        <li><code>history/archive/todo_deepseek_v4_paused_20260824_1211.md</code> — paused DeepSeek-V4 mission, pending user decision</li>
+        <li><code>history/archive/audit-fix-2026-09-27.md</code> — audit fix session</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>Git Workflow &amp; Branch Protection</h2>
+      <table>
+        <thead>
+          <tr><th>Branch</th><th>Purpose</th><th>Who can push</th><th>Protection</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>main</code> / <code>master</code></td><td>Production — deployed code only</td><td>No one directly</td><td>PR + review required</td></tr>
+          <tr><td><code>develop</code></td><td>Integration / test — features merge here</td><td>No one directly</td><td>PR + review required</td></tr>
+          <tr><td><code>feature/*</code></td><td>Individual dev work</td><td>Author</td><td>PR from feature → develop</td></tr>
+        </tbody>
+      </table>
+
+      <h3>PR Workflow</h3>
+      <ol>
+        <li>Start from <code>develop</code>: <code>git checkout develop && git pull origin develop && git checkout -b feature/your-change-name</code></li>
+        <li>Make changes, run tests, verify.</li>
+        <li>Commit with conventional prefix: <code>git commit -m "feat(kb): add supplement entity-list tool path"</code> (prefixes: feat, fix, docs, chore, refactor).</li>
+        <li>Push feature branch: <code>git push origin feature/your-change-name</code>.</li>
+        <li>Open PR from <code>feature/your-change-name</code> → <code>develop</code>; request at least one code review.</li>
+        <li>Merge to <code>develop</code> after approval.</li>
+        <li>Release to production: merge <code>develop</code> → <code>main</code>, then <code>bash deploy/vast/stop.sh && bash deploy/vast/start.sh && bash deploy/vast/health.sh</code>.</li>
+      </ol>
+
+      <h3>Branch Protection Rules (configure on GitHub)</h3>
+      <p><strong>For <code>main</code> / <code>master</code>:</strong> require PR before merging, 1 approving review, dismiss stale approvals, require status checks (CI: tests, lint, docs-toc), require branches up to date, require conversation resolution, restrict pushes to matching branches, no force pushes, no deletions, include administrators.</p>
+      <p><strong>For <code>develop</code>:</strong> same as <code>main</code>, but can allow more flexibility if desired.</p>
+
+      <h3>Submodule Workflow</h3>
+      <pre><code># 1. Work in the component repo
+cd components/knowledgebase   # or the component repo directly
+git checkout -b fix/issue-name
+# ... make changes ...
+git commit -m "fix(kb): resolve asyncpg loop bug"
+git push origin fix/issue-name
+# Open PR on that component repo → main/master
+# 2. After merge, advance the gitlink in the parent:
+cd ..
+git add components/knowledgebase
+git commit -m "chore: advance knowledgebase submodule"
+git push origin develop</code></pre>
+      <p class="alert">
+        Never commit component source changes directly in the parent repo — always go through the submodule.
+      </p>
+    </div>
+
+    <div class="section">
+      <h2>Agent Onboarding — New Machine Setup</h2>
+      <h3>Prerequisites</h3>
+      <ul>
+        <li>Git installed</li>
+        <li>Python 3.11+ (KB) or 3.12+ (orchestrator/guardrails)</li>
+        <li><code>uvicorn</code>, <code>fastapi</code>, <code>httpx</code>, <code>sqlalchemy[asyncio]</code>, <code>asyncpg</code></li>
+        <li>Access to the GitHub repos (credentials configured)</li>
+      </ul>
+
+      <h3>Step 1: Clone the umbrella repo with all submodules</h3>
+      <pre><code>git clone --recursive https://github.com/AliNikkhah2001/Work_Credit-RAG_Phase1.git
+cd Work_Credit-RAG_Phase1</code></pre>
+      <p>If already cloned without <code>--recursive</code>: <code>git submodule update --init --recursive</code></p>
+
+      <h3>Step 2: Verify submodule status</h3>
+      <pre><code>git submodule status --recursive</code></pre>
+      <p>Expected output shows all submodules pinned to commits with <code>-</code> (not <code>+</code>). A <code>+</code> prefix means the submodule is out of sync — run <code>git submodule update --recursive</code>.</p>
+
+      <h3>Step 3: Read agent context</h3>
+      <pre><code>cat agent-state/context/context.md
+cat agent-state/context/todo.md
+cat agent-state/architecture.md
+cat agent-state/coding-standards.md</code></pre>
+
+      <h3>Step 4: Check current branch</h3>
+      <pre><code>git branch --show-current</code></pre>
+      <p>Should be <code>develop</code> for integration work. Create feature branches from here: <code>git checkout -b feature/your-change</code></p>
+
+      <h3>Step 5: Verify services are running (if testing locally)</h3>
+      <pre><code>for p in 18000 8000 8200 8100; do printf "%s: " "$p"; curl -s --max-time 8 http://127.0.0.1:$p/health | head -c 120; echo; done</code></pre>
+
+      <h3>Step 6: Make changes</h3>
+      <p>Follow the PR workflow in <code>git-workflow.md</code>: feature branch from <code>develop</code>, commit with conventional prefix, push feature branch, open PR → <code>develop</code>, code review → merge.</p>
+
+      <h3>Step 7: Release (production)</h3>
+      <pre><code>git checkout main
+git pull origin main
+git merge --no-ff develop
+git push origin main
+bash deploy/vast/stop.sh
+bash deploy/vast/start.sh
+bash deploy/vast/health.sh</code></pre>
+    </div>
+
+    <div class="section">
+      <h2>Agent Context — Current Mission</h2>
+      <p><strong>Platform:</strong> Work Credit RAG Platform (Persian-first RAG with LangGraph + Guardrails)<br>
+      <strong>Branch:</strong> <code>develop</code> (integration/test) → <code>main</code>/<code>master</code> (production)<br>
+      <strong>Date:</strong> 2026-10-28</p>
+
+      <h3>Current state</h3>
+      <p>All repos have been cleaned to two branches: <code>main</code> / <code>master</code> — production, <code>develop</code> — integration/test staging. The <code>vast-gemma4-migration</code> branch has been deleted from all repos. Branch protection rules should be configured on GitHub (PR + code review required).</p>
+
+      <h3>Active component repos</h3>
+      <table>
+        <thead><tr><th>Repo</th><th>Default branch</th><th>Owns</th></tr></thead>
+        <tbody>
+          <tr><td>Work_RAG-KB</td><td><code>master</code></td><td>KB ingestion, retrieval, reranking</td></tr>
+          <tr><td>Work_Credit-RAG_Phase1/components/knowledgebase</td><td><code>master</code></td><td>KB submodule (pinned to Work_RAG-KB)</td></tr>
+          <tr><td>Work_Credit-RAG_Phase1/components/orchestrator</td><td><code>main</code></td><td>LangGraph RAG agent</td></tr>
+          <tr><td>Work_Credit-RAG_Phase1/components/guardrails</td><td><code>main</code></td><td>Safety + guarded Gemma</td></tr>
+          <tr><td>Work_Credit-RAG_Phase1 (parent)</td><td><code>main</code></td><td>Pins, integrated startup, E2E</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Key architectural facts</h3>
+      <ul>
+        <li>KB: BM25 + dense MiniLM-L12 (384d) + RRF k=60 + cross-encoder rerank, pgvector HNSW</li>
+        <li>Orchestrator: LangGraph (validate → retrieve → build_context → guarded_generate → format_response)</li>
+        <li>Guardrails: signals → LLM judge → PII mask/block → upstream LLM → output rails</li>
+        <li>LLM gateway: Work_RAG-Server-Setup port 9000, round-robin llama.cpp backends 8080-8084</li>
+        <li>Triton Gemma context window: 8192 tokens — entity payloads trimmed to 4KB total</li>
+      </ul>
+
+      <h3>Recent changes (supplement entity-list tool path)</h3>
+      <ul>
+        <li><code>_dense_encode()</code> helper replaces dead <code>dense.model.encode()</code> calls (5 sites in search.py)</li>
+        <li>Pipeline route passes <code>SentenceTransformerEmbedder()</code> so entity descriptions get embeddings</li>
+        <li><code>trim_supplemental()</code> caps entity data at top-3 lists × 4KB each</li>
+        <li><code>build_context</code> total budget: 4000 chars</li>
+        <li>Guardrails <code>finish_reason="length"</code> instead of <code>"error"</code> (pydantic Literal fix)</li>
+        <li><code>should_clarify</code> + retrieve gates short-circuit when entity evidence exists</li>
+        <li>Code-token fallback: mixed alphanumeric tokens (MTX1, SBD1) match at threshold regardless of cosine</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>Agent Todo List</h2>
+      <h3>In progress</h3>
+      <ul>
+        <li>Create GitHub repo <code>AliNikkhah2001/agent-state</code> and push local agent-state submodule to it</li>
+        <li>Configure GitHub branch protection rules on all repos: Work_RAG-KB (master, develop), Work_Credit-RAG_Phase1 (main, develop), Work_RAG-Orchestrator (main), Work_RAG-Guardrails (main)</li>
+      </ul>
+      <h3>Pending</h3>
+      <ul>
+        <li>Run draft supplement tests against live stack (KB :8000, orchestrator :8100)</li>
+        <li>Verify all submodule gitlinks are correct (<code>git submodule status --recursive</code>)</li>
+        <li>Document any remaining debugging sessions in <code>history/archive/</code></li>
+      </ul>
+      <h3>Completed</h3>
+      <ul>
+        <li>Remove <code>vast-gemma4-migration</code> branch from all repos (local + remote)</li>
+        <li>Create <code>develop</code> branch on all repos and push to origin</li>
+        <li>Create agent-state submodule with README, architecture, coding-standards, git-workflow, insights, FILE_MAP</li>
+        <li>Copy agent context, todo, and archived sessions into agent-state/</li>
+        <li>Push Work_RAG-KB master + develop to origin</li>
+        <li>Push knowledgebase submodule master + develop to origin</li>
+        <li>Push Work_Credit-RAG_Phase1 main + develop (with agent-state gitlink) to origin</li>
+      </ul>
+      <h3>Code style reminders</h3>
+      <ul>
+        <li>Use conventional commit prefixes: <code>feat:</code>, <code>fix:</code>, <code>docs:</code>, <code>chore:</code></li>
+        <li>Type hints on all public functions</li>
+        <li><code>try/except</code> around external calls (HTTP, DB, model)</li>
+        <li><code>async with db.session() as session:</code> for DB operations</li>
+        <li><code>httpx.AsyncClient(timeout=120, trust_env=False)</code> for localhost calls</li>
+        <li>No <code>pkill python</code> — use <code>bash deploy/vast/stop.sh</code></li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>Agent Skills</h2>
+      <p>Definitions of what agents can do in each component of the Work Credit RAG Platform. Use these to scope agent work and match tasks to the right component repo.</p>
+
+      <h3>KB Manager skills</h3>
+      <table>
+        <thead><tr><th>Skill</th><th>What it does</th><th>Key files</th></tr></thead>
+        <tbody>
+          <tr><td>Ingest pipeline</td><td>Parse, chunk, embed, store KB documents</td><td><code>kb_manager/pipeline/orchestrator.py</code></td></tr>
+          <tr><td>Hybrid search</td><td>BM25 + dense + RRF + rerank retrieval</td><td><code>kb_manager/web/routes/search.py</code></td></tr>
+          <tr><td>Entity lists</td><td>Store/query supplementary dictionaries (reason codes, shareholders)</td><td><code>kb_manager/models/database.py</code> (<code>EntityList</code>)</td></tr>
+          <tr><td>Supplement tool</td><td><code>POST /search/supplement</code> — embedding search over entity lists</td><td><code>kb_manager/web/routes/search.py</code></td></tr>
+          <tr><td>Pipeline routes</td><td>Trigger full/incremental rebuilds via HTTP</td><td><code>kb_manager/web/routes/pipeline.py</code></td></tr>
+          <tr><td>Zip browser</td><td>Ingest from uploaded ZIP archives</td><td><code>kb_manager/web/routes/zip_browser.py</code></td></tr>
+          <tr><td>Quality gates</td><td>Validate chunks before storage</td><td><code>kb_manager/pipeline/quality.py</code></td></tr>
+          <tr><td>Versioning</td><td>Track document versions</td><td><code>kb_manager/pipeline/versioning.py</code></td></tr>
+        </tbody>
+      </table>
+
+      <h3>Orchestrator skills</h3>
+      <table>
+        <thead><tr><th>Skill</th><th>What it does</th><th>Key files</th></tr></thead>
+        <tbody>
+          <tr><td>LangGraph RAG graph</td><td>5-node state machine (validate → retrieve → build_context → guarded_generate → format_response)</td><td><code>src/work_rag_orchestrator/graph.py</code></td></tr>
+          <tr><td>Retrieve node</td><td>KB search + proactive entity tool calls</td><td><code>src/work_rag_orchestrator/nodes/retrieve.py</code></td></tr>
+          <tr><td>Build context</td><td>Assemble system message with RAG context + entity data</td><td><code>src/work_rag_orchestrator/nodes/build_context.py</code></td></tr>
+          <tr><td>Guarded generate</td><td>Call Guardrails chat/completions</td><td><code>src/work_rag_orchestrator/nodes/guarded_generate.py</code></td></tr>
+          <tr><td>Format response</td><td>Citations + audit trail</td><td><code>src/work_rag_orchestrator/nodes/format_response.py</code></td></tr>
+          <tr><td>Tracing</td><td>Direct HTTP to Langfuse v2, JSONL fallback</td><td><code>src/work_rag_orchestrator/tracing.py</code></td></tr>
+          <tr><td>API</td><td>FastAPI <code>/v1/chat/completions</code>, <code>/v1/models</code>, <code>/health</code></td><td><code>src/work_rag_orchestrator/api.py</code></td></tr>
+        </tbody>
+      </table>
+
+      <h3>Guardrails skills</h3>
+      <table>
+        <thead><tr><th>Skill</th><th>What it does</th><th>Key files</th></tr></thead>
+        <tbody>
+          <tr><td>Input rails</td><td>Deterministic signals + LLM judge on input</td><td><code>src/work_rag_guardrails/service.py</code></td></tr>
+          <tr><td>Output rails</td><td>PII mask / hate / secret detection on output</td><td><code>src/work_rag_guardrails/service.py</code></td></tr>
+          <tr><td>LLM judge</td><td>NeMo LLMRails on local Gemma</td><td><code>src/work_rag_guardrails/judge.py</code></td></tr>
+          <tr><td>Dashboard</td><td>Decision counts, block rate, SVG plots</td><td><code>src/work_rag_guardrails/dashboard.py</code></td></tr>
+          <tr><td>API</td><td>FastAPI <code>/v1/rails/check</code>, <code>/v1/chat/completions</code></td><td><code>src/work_rag_guardrails/api.py</code></td></tr>
+        </tbody>
+      </table>
+
+      <h3>Tracing skills</h3>
+      <table>
+        <thead><tr><th>Skill</th><th>What it does</th><th>Key files</th></tr></thead>
+        <tbody>
+          <tr><td>Fallback collector</td><td>Langfuse-compatible ingestion, JSONL storage</td><td><code>app.py</code></td></tr>
+          <tr><td>Timeline builder</td><td>Request → spans → response timelines</td><td><code>observe.py</code></td></tr>
+        </tbody>
+      </table>
+
+      <h3>Match task to skill</h3>
+      <table>
+        <thead><tr><th>Task type</th><th>Recommended skill</th><th>Repo</th></tr></thead>
+        <tbody>
+          <tr><td>Add a new retrieval feature</td><td>Hybrid search</td><td>KB Manager</td></tr>
+          <tr><td>Add a new entity list type</td><td>Entity lists + Supplement tool</td><td>KB Manager</td></tr>
+          <tr><td>Change RAG graph flow</td><td>LangGraph RAG graph</td><td>Orchestrator</td></tr>
+          <tr><td>Add a new guardrail category</td><td>Input rails / LLM judge</td><td>Guardrails</td></tr>
+          <tr><td>Fix context window overflow</td><td><code>trim_supplemental</code> + <code>build_context</code> budget</td><td>Orchestrator</td></tr>
+          <tr><td>Fix embedding issues</td><td><code>_dense_encode()</code> helper</td><td>KB Manager</td></tr>
+          <tr><td>Add a new dashboard metric</td><td>Dashboard</td><td>Guardrails</td></tr>
+          <tr><td>Change tracing backend</td><td>Tracing collector</td><td>Tracing</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <p><strong>Dana</strong> — Agent State Submodule | Work Credit RAG Platform &nbsp;|&nbsp;
+        <a href="index.html">← Overview</a> &nbsp;|&nbsp;
+        <a href="high-level.html">← High-Level Detail</a>
+      </p>
+    </div>
+  </footer>
+
+  <script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({ startOnLoad: true, theme: 'base', securityLevel: 'loose' });
+  </script>
+</body>
+</html>
