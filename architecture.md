@@ -71,18 +71,23 @@ Orchestrator (:8100, LangGraph RAG graph)
 - `question` — passes to ambiguity resolver (Mizan System-1 + Gemma hybrid)
 
 **Entity lists (supplement tool):**
-- Stored in `EntityList` table with `description_embedding`
-- Accessed via `POST /search/supplement` (threshold 0.4)
-- Used by orchestrator when query matches entity keywords (reason codes, shareholders, loan titles)
+- Built by `kb_manager/entity_lists.py` into structured `content_json` (`_meta.kind`, `subspace_ids`)
+- Kinds: `score_table` (person/legal/cheque), `loan_catalog`, `shareholders`, `data_providers`, `report_consumers`
+- Stored in `EntityList` with `description_embedding`
+- Step-8 inject on `/search/api` (cosine ≥ 0.6) + subspace score-table force-inject (no cross-model bleed)
+- Tool path: `POST /search/supplement` (threshold 0.4, subspace/filter_path aware)
+- Non-list ضمیمه: glossary → synonym map; welcome → canned; offtopic → rail; limitations → skipped
+- Orchestrator: `trim_supplemental` ranks lists by **query relevance** (top-3, ~8 KB/list), `build_context` ranks Entity Data into a ~9000-char budget, `format_response` recovers from Entity Data when the LLM abstains or bleeds a score table
 
 ### Orchestrator (`Work_Credit-RAG_Phase1/components/orchestrator/`)
 
-**LangGraph state machine — 5 nodes:**
+**LangGraph state machine:**
 1. `validate_input` — input guardrails check
-2. `retrieve` — KB search + proactive entity tool call
-3. `build_context` — assemble system message with context + entity data
-4. `guarded_generate` → Guardrails `:8200/v1/chat/completions`
-5. `format_response` — citations + audit
+2. `classify` (+ optional `hybrid_classify`) — greeting / specification / question
+3. `retrieve` — KB search + proactive entity tool call + trim
+4. `build_context` — assemble system message with context + ranked entity data
+5. `guarded_generate` → Guardrails `:8200/v1/chat/completions`
+6. `format_response` — citations + audit + Entity Data recovery
 
 **Tracing:** Direct HTTP to Langfuse v2 (`LANGFUSE_HOST`), fallback JSONL collector at `:3000`.
 
@@ -90,7 +95,7 @@ Orchestrator (:8100, LangGraph RAG graph)
 
 **Pipeline:**
 1. Deterministic signals (injection, jailbreak, HurtLex, profanity, scope)
-2. LLM judge (NeMo LLMRails on local Gemma, `enable_thinking:false`)
+2. Policy / LLM / Mizan judge (NeMo removed; `enable_thinking:false` on Gemma)
 3. PII mask-and-continue vs hard block
 4. Fail-closed on timeout/error
 
@@ -100,10 +105,10 @@ Orchestrator (:8100, LangGraph RAG graph)
 
 ## 🧠 Context window management
 
-The Triton Gemma backend has an **8192-token context window**. To stay within it:
+The Gemma backend has an **8192-token context window**. To stay within it:
 
-- Entity-list payloads trimmed to **top-3 lists**, **4KB each**, query-token filtered
-- RAG context capped at **~6000 chars**
+- Entity-list payloads trimmed to **top-3 lists by query relevance**, **~8 KB each**, bulky dumps dropped, rows query-token filtered
+- RAG context capped at **~9000 chars** (`MAX_CONTEXT`) with `MAX_CHUNKS=20`
 - Total prompt (system + context + entity data) target: **~20K chars (~7K tokens)**
 - If upstream returns 400 (`max_seq_len` overflow), guardrails returns `finish_reason="length"` gracefully
 
