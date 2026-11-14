@@ -114,9 +114,9 @@ The Triton Gemma backend has an **8192-token context window**. To stay within it
 | | Production | Test / Integration |
 |---|---|---|
 | Branch | `main` / `master` | `develop` |
-| Deploy | `bash deploy/vast/start.sh` | Same stack via `deploy/vast/` |
+| Deploy | `bash deploy/docker/docker-compose.yml` | Same stack via `deploy/docker/` |
 | Model cache | `HF_HOME` + `HF_HUB_CACHE` = same dir | Same |
 | `HF_HUB_OFFLINE` | `1` | `1` |
 
 **Startup order:** postgres → Gemma → KB → guardrails → collector → orchestrator → WebUI
-(`bash deploy/vast/start.sh`).
+(`deploy/docker/docker-compose.yml`).
