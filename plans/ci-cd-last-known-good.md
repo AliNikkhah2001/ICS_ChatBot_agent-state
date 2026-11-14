@@ -168,3 +168,67 @@ failed**.
    inside `dana-jenkins`. That is a Docker DNS/proxy problem, not a pipeline
    problem. Fix: `dns: [1.1.1.1, 8.8.8.8]` on the jenkins service, or set
    `HTTP_PROXY`/`NO_PROXY` on that container.
+
+## 7. Second pass — defects found while re-verifying (2026-11-14 late)
+
+Re-running the suites against the live laptop stacks found two more real bugs,
+plus one that only appeared under concurrent testing.
+
+### 7.1 The deploy gate gated the wrong stack
+
+`scripts/ci_deploy_gate.sh` accepted `--ports` but `check_endpoints()` ignored it
+and probed a hardcoded `8000/8200/8100/13000`. Consequences:
+
+- A **stage** deploy (`--ports 13100,18100,18000,18200`) was validated against the
+  **local prod** stack, so the gate could print `PASS` while every stage port was
+  dead.
+- Conversely a healthy local stack masked a broken stage deploy.
+
+Observed before the fix:
+
+```
+[gate] endpoints answering: 8000 8200 8100 13000     <- local ports, not stage
+[gate] RESULT: PASS
+```
+
+The probe set is now derived from `EXPECTED_PORTS` (UI ports → `/`, API tier →
+`/health`), and orchestrator `/ready` is probed only on the port actually passed.
+
+### 7.2 `rollback.sh` was the one unguarded destructive path
+
+`deploy.sh`, `health.sh` and `reconcile.sh` call `dana_guard_overrides`;
+`rollback.sh` did not. A leaked `DANA_PROJECT` / `DANA_COMPOSE_FILES` /
+`DANA_ENV_FILE` (exactly what `deploy/gpu/sim/simulate.sh` exports) would
+silently retarget a production rollback at a disposable stack. It now calls the
+guard and dies on refusal.
+
+### 7.3 Rollout was not idempotent; the sim suite was not race-free
+
+- `compose up` keys off its own project labels. A container left by a *different*
+  file set (base-only restart, edited overlay, generated rollback pin) holds the
+  expected name while being invisible to the current call, so `up` aborts with
+  `container name is already in use` and the rollout dies mid-order, leaving a
+  partially upgraded stack. `dana_remove_stale_container()` now reclaims only a
+  container whose compose project label matches ours, and `up` runs with
+  `--remove-orphans`.
+- `simulate.sh` bound fixed ports `19300-19302` with no mutex. Two concurrent
+  runs raced and produced phantom failures (a correctly layered deploy appearing
+  to fail the port preflight). Added a pid lock with stale-lock reclaim and a
+  single `EXIT` trap for lock release + teardown.
+
+**Method note:** an intermediate 16-check run showed b1-b7 failing. That result
+was invalid — I removed a lock directory whose holder pid was still alive, so two
+sims raced on the same ports. The lesson is encoded in the lock itself: a lock is
+only stale when its recorded pid is dead.
+
+### 7.4 Re-verification after this pass
+
+| Check | Result |
+|---|---|
+| `bash -n` on every touched script | all OK |
+| `deploy/gpu/sim/simulate.sh` | **16/16 passed** (a1-a4, b1-b7, c1-c5) |
+| `deploy/gpu/sim/verify_report_repo.sh` | **9/9 passed** |
+| `ci_verify_coverage.py --self-test` | OK |
+| Stage gate, real stage ports | PASS — answered `13100 18100 18000 18200` |
+| Stage gate, bogus port `19999` | FAIL, exit 1 |
+| Local gate `8000,8100,8200,13000` | PASS (unchanged behavior) |
